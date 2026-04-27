@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: crm_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root # This is the important one
+      MYSQL_DATABASE: crm
+      # REMOVED MYSQL_USER: root (It's redundant and causes crashes)
+      # REMOVED MYSQL_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - crm_network
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: crm_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql
+    networks:
+      - crm_network
+
+volumes:
+  mysql_data:
+
+networks:
+  crm_network:
+    driver: bridge
