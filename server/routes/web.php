@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\LeadController;
+use App\Http\Controllers\ContactController;
+use App\Http\Controllers\CarrierController;
 /*
 |--------------------------------------------------------------------------
 | Public Route
@@ -36,7 +38,6 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:view reports')
         ->name('reports.index');
 
-    // ⚠️ MUST be above Route::resource()
     Route::get('/users/roles', [UserManagementController::class, 'getRoles'])
         ->name('users.roles');
 
@@ -49,7 +50,25 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/leads/{id}/convert', [LeadController::class, 'convert'])
         ->middleware('permission:view leads')
         ->name('leads.convert');
-    // Profile
+    Route::resource('leads', LeadController::class);
+
+    // Convert lead → contact  (POST /leads/{id}/convert)
+    Route::post('leads/{id}/convert', [LeadController::class, 'convert'])
+         ->name('leads.convert');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Contact Routes
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/carriers', [CarrierController::class, 'index'])->name('carriers.index');
+Route::get('/carriers/{carrier}', [CarrierController::class, 'show'])->name('carriers.show');
+    Route::resource('contacts', ContactController::class);
+
+    // Restore soft-deleted contact  (POST /contacts/{id}/restore)
+    Route::post('contacts/{id}/restore', [ContactController::class, 'restore'])
+         ->name('contacts.restore');
+        // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

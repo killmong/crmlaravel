@@ -6,34 +6,67 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('contacts', function (Blueprint $table) {
-    $table->id();
+            $table->id();
 
-    $table->string('name');
-    $table->string('email')->nullable();
-    $table->string('phone')->nullable();
+            // ── Core Info ─────────────────────────────────────────────
+            $table->string('name');
+            $table->string('email')->nullable()->unique();
+            $table->string('phone')->nullable();
+            $table->string('company')->nullable();
 
-    $table->foreignId('lead_id')
-          ->nullable()
-          ->constrained('leads')
-          ->nullOnDelete();
+            // ── Classification ────────────────────────────────────────
+            $table->string('type')->default('lead');
+            // lead | customer | partner | vendor
 
-    $table->foreignId('user_id')
-          ->constrained()
-          ->cascadeOnDelete();
+            $table->string('status')->default('active');
+            // active | inactive | archived
 
-    $table->timestamps();
-});
+            $table->string('source')->nullable();
+            // website | referral | cold_call | social_media | email_campaign | other
+
+            $table->string('priority')->default('medium');
+            // low | medium | high
+
+            $table->string('department')->nullable();
+
+            // ── Financials ────────────────────────────────────────────
+            $table->unsignedBigInteger('deal_value')->nullable();
+            $table->string('currency')->default('INR');
+
+            // ── Extra ─────────────────────────────────────────────────
+            $table->text('notes')->nullable();
+            $table->string('address')->nullable();
+            $table->string('city')->nullable();
+            $table->string('state')->nullable();
+            $table->string('country')->nullable()->default('India');
+            $table->string('pincode')->nullable();
+
+            // ── Ownership ─────────────────────────────────────────────
+            $table->foreignId('user_id')                       // owner/creator
+                  ->constrained()
+                  ->cascadeOnDelete();
+
+            $table->foreignId('assigned_to')
+                  ->nullable()
+                  ->constrained('users')
+                  ->nullOnDelete();
+
+            // ── Origin ────────────────────────────────────────────────
+            $table->foreignId('lead_id')                       // originating lead
+                  ->nullable()
+                  ->constrained('leads')
+                  ->nullOnDelete();
+
+            $table->timestamp('lead_converted_at')->nullable();
+
+            $table->timestamps();
+            $table->softDeletes();
+        });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('contacts');

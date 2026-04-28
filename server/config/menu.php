@@ -31,6 +31,16 @@ return [
         'title' => 'Tickets',
         'route' => 'tickets.index',
         'permission' => 'manage tickets'
+    ],
+    [
+     'title' => 'Contacts',
+        'route' => 'contacts.index',
+        'permission' => 'view leads'
+    ],
+    [
+        'title' => 'Tracker',
+        'route' => 'carriers.index',
+        'permission' => 'track carriers'
     ]
 
 

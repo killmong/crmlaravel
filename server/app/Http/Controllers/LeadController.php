@@ -4,86 +4,108 @@ namespace App\Http\Controllers;
 
 use App\Models\Lead;
 use App\Models\User;
-use App\Models\Contact;
 use Illuminate\Http\Request;
 
 class LeadController extends Controller
 {
-    /**
-     * Display a listing of leads
-     */
-    public function index()
-{
-    $user = auth()->user();
+    /*
+    |--------------------------------------------------------------------------
+    | INDEX
+    |--------------------------------------------------------------------------
+    */
+  public function index()
+    {
+        $user = auth()->user();
 
-    if ($user->designation === 'admin') {
-        $leads = Lead::latest()->paginate(10);
+        // 1. Fetch leads based on Spatie roles
+        // hasRole accepts an array and returns true if the user has ANY of those roles
+        if ($user->hasRole(['master-admin', 'admin'])) {
+            $leads = Lead::with(['user', 'assignee'])
+                         ->latest()
+                         ->paginate(10);
+        } else {
+            // For regular users/managers
+            $leads = Lead::with(['user', 'assignee'])
+                         ->whereIn('user_id', $this->getTeamIds($user))
+                         ->latest()
+                         ->paginate(10);
+        }
+
+        // 2. Fetch assignable users for the dropdown
+        if ($user->hasRole(['master-admin', 'admin'])) {
+            // Admins can see everyone
+            $users = User::all();
+
+            // PRO TIP: If you only want admins to assign leads to regular users
+            // (and not assign leads to other admins), change the line above to:
+            // $users = User::role('user')->get();
+        } else {
+            // Regular users only see their subordinates
+            $users = User::where('manager_id', $user->id)->get();
+        }
+
+        return view('leads.index', compact('leads', 'users'));
     }
-
-    elseif ($user->designation === 'manager') {
-        $teamIds = $this->getTeamIds($user);
-        $leads = Lead::whereIn('user_id', $teamIds)->paginate(10);
-    }
-
-    elseif ($user->designation === 'tl') {
-        $teamIds = User::where('manager_id', $user->id)->pluck('id');
-        $leads = Lead::whereIn('user_id', $teamIds)->paginate(10);
-    }
-
-    else {
-        $leads = Lead::where('user_id', $user->id)->paginate(10);
-    }
-
-    // IMPORTANT: restrict assign dropdown
-    $users = User::where('manager_id', $user->id)->get();
-
-    return view('leads.index', compact('leads', 'users'));
-}
-    /**
-     * Show form to create lead
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | CREATE
+    |--------------------------------------------------------------------------
+    */
     public function create()
     {
         return view('leads.create');
     }
 
-    /**
-     * Store new lead
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | STORE
+    |--------------------------------------------------------------------------
+    */
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => ['required', 'string'],
-            'email' => ['nullable', 'email'],
-            'phone' => ['nullable'],
+        $validated = $request->validate([
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['nullable', 'email', 'max:255'],
+            'phone'    => ['nullable', 'string', 'max:30'],
+            'company'  => ['nullable', 'string', 'max:255'],
+            'status'   => ['nullable', 'string'],
+            'source'   => ['nullable', 'string'],
+            'priority' => ['nullable', 'in:low,medium,high'],
+            'value'    => ['nullable', 'integer', 'min:0'],
+            'notes'    => ['nullable', 'string'],
+            'department' => ['nullable', 'string'],
+
         ]);
 
         Lead::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'source' => $request->source ?? 'manual',
-            'status' => 'new',
+            ...$validated,
+            'status'  => $validated['status']   ?? 'new',
+            'priority'=> $validated['priority']  ?? 'medium',
+            'source'  => $validated['source']    ?? 'manual',
             'user_id' => auth()->id(),
         ]);
 
         return redirect()->route('leads.index')
-            ->with('success', 'Lead created successfully');
+                         ->with('success', 'Lead created successfully.');
     }
 
-    /**
-     * Show single lead
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | SHOW
+    |--------------------------------------------------------------------------
+    */
     public function show($id)
     {
-        $lead = Lead::findOrFail($id);
+        $lead = Lead::with(['user', 'assignee', 'contact'])->findOrFail($id);
 
         return view('leads.show', compact('lead'));
     }
 
-    /**
-     * Show edit form
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | EDIT
+    |--------------------------------------------------------------------------
+    */
     public function edit($id)
     {
         $lead = Lead::findOrFail($id);
@@ -91,89 +113,94 @@ class LeadController extends Controller
         return view('leads.edit', compact('lead'));
     }
 
-    /**
-     * Update lead
-     */
-public function update(Request $request, $id)
-{
-    // Fetch the lead once
-    $lead = Lead::findOrFail($id);
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE  —  handles both assign (modal) and full edit (form)
+    |--------------------------------------------------------------------------
+    */
+    public function update(Request $request, $id)
+    {
+        $lead = Lead::findOrFail($id);
 
-    // 1. ASSIGN CASE (From the modal)
-    if ($request->has('assigned_to')) {
-        $lead->update([
-            'assigned_to' => $request->assigned_to
+        // ── ASSIGN case: only assigned_to is sent from the assign modal ──
+        if ($request->has('assigned_to') && count($request->all()) <= 3) {
+            // <= 3 accounts for _token, _method, assigned_to
+            $request->validate([
+                'assigned_to' => ['required', 'exists:users,id'],
+            ]);
+
+            $lead->update(['assigned_to' => $request->assigned_to]);
+
+            return back()->with('success', 'Lead assigned successfully.');
+        }
+
+        // ── FULL UPDATE case ──
+       // ── FULL UPDATE case ──
+        $validated = $request->validate([
+            'name'       => ['required', 'string', 'max:255'],
+            'email'      => ['nullable', 'email', 'max:255'],
+            'phone'      => ['nullable', 'string', 'max:30'],
+            'company'    => ['nullable', 'string', 'max:255'],
+            'status'     => ['required', 'string'],
+            'source'     => ['nullable', 'string'],
+            'priority'   => ['nullable', 'in:low,medium,high'],
+            'value'      => ['nullable', 'integer', 'min:0'],
+            'notes'      => ['nullable', 'string'],
+            'department' => ['nullable', 'string'],
+            'assigned_to'=> ['nullable', 'exists:users,id'],
         ]);
 
-        return back()->with('success', 'Lead assigned successfully');
+
+        $lead->update($validated);
+
+        return redirect()->route('leads.index')
+                         ->with('success', 'Lead updated successfully.');
     }
 
-    // 2. NORMAL UPDATE CASE (From the edit page)
-    $request->validate([
-        'name' => ['required', 'string'],
-        'email' => ['nullable', 'email'],
-        'phone' => ['nullable'],
-        'status' => ['required'],
-    ]);
-
-    $lead->update([
-        'name' => $request->name,
-        'email' => $request->email,
-        'phone' => $request->phone,
-        'status' => $request->status,
-    ]);
-
-    return redirect()->route('leads.index')
-        ->with('success', 'Lead updated successfully');
-}
-    /**
-     * Delete lead
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | DESTROY
+    |--------------------------------------------------------------------------
+    */
     public function destroy($id)
     {
         $lead = Lead::findOrFail($id);
 
-        // Optional protection
         if ($lead->status === 'converted') {
-            return back()->withErrors('Cannot delete converted lead');
+            return back()->withErrors(['error' => 'Cannot delete a converted lead.']);
         }
 
         $lead->delete();
 
         return redirect()->route('leads.index')
-            ->with('success', 'Lead deleted successfully');
+                         ->with('success', 'Lead deleted successfully.');
     }
 
-    /**
-     * Convert lead to contact
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | CONVERT  —  delegates all logic to Lead::convertToContact()
+    |--------------------------------------------------------------------------
+    */
     public function convert($id)
     {
         $lead = Lead::findOrFail($id);
 
-        if ($lead->status === 'converted') {
-            return back()->withErrors('Already converted');
+        if ($lead->isConverted()) {
+            return back()->withErrors(['error' => 'This lead has already been converted.']);
         }
 
-        Contact::create([
-            'name' => $lead->name,
-            'email' => $lead->email,
-            'phone' => $lead->phone,
-            'lead_id' => $lead->id,
-            'user_id' => auth()->id(),
-        ]);
+        $contact = $lead->convertToContact();
 
-        $lead->update([
-            'status' => 'converted'
-        ]);
-
-        return back()->with('success', 'Lead converted to contact');
+        return redirect()->route('contacts.show', $contact->id)
+                         ->with('success', 'Lead converted to contact successfully.');
     }
 
-    /**
-     * Get team hierarchy (recursive)
-     */
-    private function getTeamIds($user)
+    /*
+    |--------------------------------------------------------------------------
+    | Private Helpers
+    |--------------------------------------------------------------------------
+    */
+    private function getTeamIds(object $user): array
     {
         $ids = [$user->id];
 

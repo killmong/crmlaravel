@@ -17,6 +17,8 @@ class RoleSeeder extends Seeder
         // ALL PERMISSIONS (CENTRAL SOURCE)
         // -----------------------------------------
         $permissions = [
+            //TruckStop API
+            'track carriers',
 
             // Records
             'view own records',
@@ -88,6 +90,8 @@ class RoleSeeder extends Seeder
         // ADMIN → operational + management
         $admin = Role::firstOrCreate(['name' => 'admin']);
         $admin->syncPermissions([
+            'track carriers',
+
          'view own records',
             'edit own records',
             'create records',
@@ -146,6 +150,8 @@ class RoleSeeder extends Seeder
         // AGENT (user)
         $agent = Role::firstOrCreate(['name' => 'user']);
         $agent->syncPermissions([
+            'track carriers',
+
             'view dashboard',
             'view own records',
             'edit own records',
