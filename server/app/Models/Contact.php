@@ -46,7 +46,7 @@ class Contact extends Model
         'assigned_to',
 
         // Origin
-        'lead_id',
+        
         'lead_converted_at',
     ];
 

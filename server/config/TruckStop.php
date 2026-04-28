@@ -1,8 +1,12 @@
 <?php
+ 
 
 return [
-    'client_id'       => env('TRUCKSTOP_CLIENT_ID'),
-    'client_password' => env('TRUCKSTOP_CLIENT_PASSWORD'),
-    'base_url'        => env('TRUCKSTOP_BASE_URL', 'https://api.rmissecure.com'),
-    'test_mc_numbers' => ['MC9999201', 'MC9979682'],
+    'client_id' => env('RMIS_CLIENT_ID'),      // Your RMIS ID: 7327
+    'password'  => env('RMIS_PASSWORD'),        // Your password
+    'version'   => '1',
+
+    'delta_url'    => 'https://api.rmissecure.com/_c/std/api/DeltaAPI.aspx',
+    'expanded_url' => 'https://api.rmissecure.com/_c/std/api/ExpandedCarrierAPI.aspx',
+    'document_url' => 'https://api.rmissecure.com/_c/std/api/DocumentAPI.aspx',
 ];

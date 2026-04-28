@@ -4,18 +4,10 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
-
+use App\Jobs\SyncCarriersJob;
 class Kernel extends ConsoleKernel
 {
-    protected $commands = [
-        Commands\SyncCarriersCommand::class,
-    ];
+    use App\Jobs\SyncCarriersJob;
 
-    protected function schedule(Schedule $schedule)
-    {
-        // Run full sync every 10 minutes in production
-        $schedule->job(new \App\Jobs\SyncCarriersJob)
-                 ->everyTenMinutes()
-                 ->withoutOverlapping(); // prevent double runs
-    }
+Schedule::job(new SyncCarriersJob)->everyFifteenMinutes();
 }
